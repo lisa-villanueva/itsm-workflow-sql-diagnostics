@@ -28,6 +28,12 @@ Structure:
 Key modeling decision:
 Event log → Latest state view for case-level reporting.
 
+Event Log vs. Case-Level Modeling:
+The source table incidents is an event log: each row represents a system update in an incident’s lifecycle. A single incident may generate multiple rows as it moves through assignment, status changes, and resolution.
+
+Operational decisions, however, are made at the incident (case) level. Metrics such as backlog, SLA attainment, and cycle time must reflect one record per incident. Calculating these directly on the event log would overstate workload and distort performance because incidents with more updates would be counted multiple times.
+
+To ensure decision-grade accuracy, a normalized view (v_incidents_latest) was created to isolate the most recent state of each incident. All KPIs are calculated from this case-level view, preventing inflation, preserving auditability, and aligning reporting with how leadership evaluates operational performance.
 
 ---
 
@@ -43,9 +49,9 @@ This project separates logic into layers:
 Why this matters:
 Event logs inflate counts and distort KPIs unless properly normalized.
 
-
 ---
 
+---
 ## Key Metrics Implemented
 
 - Backlog (current open incidents)
