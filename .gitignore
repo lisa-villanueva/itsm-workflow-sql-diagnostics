@@ -1,0 +1,13 @@
+# SQLite + DB Browser project artifacts
+*.db
+*.db-journal
+*.sqbpro
+
+# Raw datasets
+data/*.csv
+data/*.txt
+
+# OS/editor noise
+.DS_Store
+Thumbs.db
+.vscode/
