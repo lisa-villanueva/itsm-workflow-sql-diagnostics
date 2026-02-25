@@ -125,3 +125,21 @@ This repository is part of a structured progression of building my own skills to
 - Advanced SQL fluency
 - Workflow-level operational diagnostics
 - AI-enabled business transformation roles
+
+## Executive Insights & Baselines (Feb 2026)
+Through architectural normalization and SQL diagnostics, the following performance baselines were established to guide AI orchestration:
+
+# The "Rework Tax" (SLA Penalty):
+Clean Tickets: 64.16% SLA Attainment.
+
+Reworked Tickets: 19.07% SLA Attainment.
+
+Insight: Process friction (reassignments/reopens) results in a 45% collapse in service reliability. This is the primary target for AI-augmented triage.
+
+#Volume vs. Impact:
+
+Finding: While "Rework" only accounts for ~7.8% of total volume, it accounts for a disproportionate amount of SLA breaches and senior engineer "context switching."
+
+# Process Integrity (The 3-3-3 Rule):
+
+Baseline: Tickets with reassignment_count > 3 are statistically unlikely to meet SLA promises, regardless of priority. This establishes a Hard Trigger for human intervention.
