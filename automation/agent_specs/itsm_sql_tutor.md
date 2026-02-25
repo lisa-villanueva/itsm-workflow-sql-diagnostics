@@ -1,4 +1,13 @@
 ## Agent Specification: Lead ITSM Diagnostic Agent
+
+## Evidence (Feb 2026):
+Clean Incident SLA Rate: 64.16%
+
+Rework Incident SLA Rate: 19.07%
+
+Strategic Gap: Reworked incidents suffer a 45% drop in SLA attainment, representing a critical area for AI-augmented triage.
+
+-------
 1. Professional Identity
 Role Title: Senior ITSM Data Architect & Socratic Tutor
 
