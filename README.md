@@ -1,22 +1,16 @@
 # ITSM Workflow SQL Diagnostics
+## Findings
+Reworked ITSM tickets experience a 45% SLA performance collapse (19% attainment vs. 64% for clean tickets) despite representing only 7.8% of incident volume. This analysis used SQL to identify rework patterns, normalize event-log data into one-row-per-incident views, and quantify the SLA penalty caused by process friction.
 
-## Overview
+## Business Context
+IT operations teams often can't see the cost of workflow turbulence. This diagnostic isolates the "Rework Tax" as the primary driver of SLA failure and senior engineer context-switching overhead.
 
+## Approach
+I normalized the event-log into a one-row-per-incident view and defined rework thresholds to include reopen_count > 0 and reassignment_count > 3.
 This repository demonstrates intermediate-level SQL applied to an IT Service Management (ITSM) event log dataset.  
 
-The focus is operational workflow diagnostics, SLA governance, and structured metric validation — not dashboard production.
 
-The goal is to show:
-- Lifecycle modeling from event logs
-- Case-level normalization using window functions
-- KPI definition discipline
-- Governance and reconciliation logic
-- Business-oriented diagnostic thinking
-
----
-
-## Dataset
-
+## Dataset & Schema
 Source: Public ITSM incident event log dataset (Kaggle).
 https://www.kaggle.com/datasets/vipulshinde/incident-response-log
 
@@ -25,73 +19,92 @@ Structure:
 - Multiple rows per incident (state transitions / updates)
 - 36 attributes including lifecycle timestamps, SLA flags, assignment groups, and rework indicators
 
-Key modeling decision:
+
+## Architecture Overview
+This project separates logic into layers:
+00_setup → 01_profiling → 02_modeling → 03_metrics → 04_governance. 
+
+00_setup  Inspect schema, data types, key fields, and basic integrity signals
+
+01_profiling Understand event density and confirm modeling assumptions. Explore workflow distribution and friction drivers
+
+02_modeling Normalize event-log incidents into one-row-per-incident (latest state). Key modeling decision:
 Event log → Latest state view for case-level reporting.
 
-Event Log vs. Case-Level Modeling:
-The source table incidents is an event log: each row represents a system update in an incident’s lifecycle. A single incident may generate multiple rows as it moves through assignment, status changes, and resolution.
+03_metrics Identifies the 'SLA Penalty' associated with reassignments and reopens. uantify the cost of process friction (Rework)
 
-Operational decisions, however, are made at the incident (case) level. Metrics such as backlog, SLA attainment, and cycle time must reflect one record per incident. Calculating these directly on the event log would overstate workload and distort performance because incidents with more updates would be counted multiple times.
+04_governance TBD
+
+## Key Queries
+## Query #1: Normalize event-log incidents into one-row-per-incident (latest state)
+DROP VIEW IF EXISTS v_incidents_latest;
+
+CREATE VIEW v_incidents_latest AS
+WITH ranked AS (
+  SELECT
+    i.*,
+    ROW_NUMBER() OVER (
+      PARTITION BY number
+      ORDER BY
+        (
+          WITH src(dt) AS (SELECT COALESCE(i.sys_updated_at, i.sys_created_at))
+          SELECT
+            substr(dt, instr(dt, '/') + 1 + instr(substr(dt, instr(dt, '/') + 1), '/'), 4) || '-' ||
+            printf('%02d', CAST(substr(dt, instr(dt, '/') + 1, instr(substr(dt, instr(dt, '/') + 1), '/') - 1) AS INT)) || '-' ||
+            printf('%02d', CAST(substr(dt, 1, instr(dt, '/') - 1) AS INT)) || ' ' ||
+            substr(dt, instr(dt, ' ') + 1)
+          FROM src
+        ) DESC,
+        sys_mod_count DESC,
+        rowid DESC
+    ) AS rn
+  FROM incidents i
+)
+SELECT *
+FROM ranked
+WHERE rn = 1;
+
+## Query #2: Rework & Process Friction
+WITH rework_flagged AS (
+    SELECT 
+        number,
+        assignment_group,
+        -- Ensuring made_sla is treated as a truthy value (1, '1', or 'true')
+        CASE 
+            WHEN made_sla IN (1, '1', 'true', 'True') THEN 1.0 
+            ELSE 0.0 
+        END AS is_sla_met,
+        (julianday(resolved_at) - julianday(sys_created_at)) * 24 AS cycle_time_hours,
+        CASE 
+            WHEN reassignment_count > 3 OR reopen_count > 0 THEN 'Rework'
+            ELSE 'Clean'
+        END AS process_quality
+    FROM v_incidents_latest
+    WHERE resolved_at IS NOT NULL 
+      AND sys_created_at IS NOT NULL
+)
+SELECT 
+    process_quality,
+    COUNT(number) AS incident_count,
+    ROUND(AVG(cycle_time_hours), 2) AS avg_hours,
+    -- KPI: SLA Success Rate by Quality
+    ROUND(AVG(is_sla_met) * 100, 2) || '%' AS sla_rate
+FROM rework_flagged
+GROUP BY process_quality;
+
+## Governance & Data Quality
+A single incident may generate multiple rows as it moves through assignment, status changes, and resolution. Because operational decisions are made at the case or incident-level, metrics such as backlog, SLA attainment, and cycle time must reflect one record per incident. Calculating these directly on the event log would overstate workload and distort performance because incidents with more updates would be counted multiple times.
 
 To ensure decision-grade accuracy, a normalized view (v_incidents_latest) was created to isolate the most recent state of each incident. All KPIs are calculated from this case-level view, preventing inflation, preserving auditability, and aligning reporting with how leadership evaluates operational performance.
 
 ---
 
-## Modeling Approach
+## Tools & Skills Demonstrated
 
-This project separates logic into layers:
+SQL: Window functions (ROW_NUMBER), CTEs, conditional aggregation
+Data Governance: Case-level normalization, metric integrity, reconciliation logic
+Business Analysis: Root cause isolation, executive framing, diagnostic KPI design
 
-1. Raw event log (`incidents`)
-2. Latest-state view (`v_incidents_latest`)
-3. Metric-ready view (normalized dates + SLA flag)
-4. Governance validation queries
-
-Why this matters:
-Event logs inflate counts and distort KPIs unless properly normalized.
-
----
-
----
-## Key Metrics Implemented
-
-- Backlog (current open incidents)
-- Backlog aging buckets
-- Cycle time (opened → closed)
-- SLA attainment rate
-- Reassignment impact
-- Reopen impact
-- Backlog reconciliation logic
-
-Each metric includes explicit definition and control validation.
-
-
----
-
-## SQL Techniques Demonstrated
-
-- Window functions (ROW_NUMBER partitioning)
-- Common Table Expressions (CTEs)
-- Conditional aggregation
-- Date parsing and normalization
-- Governance reconciliation math
-- Data quality exception checks
-
-
----
-
-## Business Diagnostic Summary (High-Level)
-
-This project evaluates:
-
-- Concentration of SLA breaches
-- Impact of reassignment on resolution time
-- Rework amplification via reopen_count
-- Operational volatility across assignment groups
-
-The intent is to translate SQL outputs into actionable operational insights.
-
-
----
 
 ## AI Readiness Considerations
 
@@ -115,31 +128,3 @@ This project intentionally builds the governance foundation required before AI i
 4. Run metric scripts in `/sql/03_metrics`
 5. Validate using `/sql/04_governance_controls`
 
-
----
-
-## Author Intent
-
-This repository is part of a structured progression of building my own skills toward:
-
-- Advanced SQL fluency
-- Workflow-level operational diagnostics
-- AI-enabled business transformation roles
-
-## Executive Insights & Baselines (Feb 2026)
-Through architectural normalization and SQL diagnostics, the following performance baselines were established to guide AI orchestration:
-
-# The "Rework Tax" (SLA Penalty):
-Clean Tickets: 64.16% SLA Attainment.
-
-Reworked Tickets: 19.07% SLA Attainment.
-
-Insight: Process friction (reassignments/reopens) results in a 45% collapse in service reliability. This is the primary target for AI-augmented triage.
-
-#Volume vs. Impact:
-
-Finding: While "Rework" only accounts for ~7.8% of total volume, it accounts for a disproportionate amount of SLA breaches and senior engineer "context switching."
-
-# Process Integrity (The 3-3-3 Rule):
-
-Baseline: Tickets with reassignment_count > 3 are statistically unlikely to meet SLA promises, regardless of priority. This establishes a Hard Trigger for human intervention.
