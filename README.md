@@ -2,12 +2,13 @@
 ## Findings
 Reworked ITSM tickets experience a 45% SLA performance collapse (19% attainment vs. 64% for clean tickets) despite representing only 7.8% of incident volume. This analysis used SQL to identify rework patterns, normalize event-log data into one-row-per-incident views, and quantify the SLA penalty caused by process friction.
 
+Key finding: Process friction accounts for a 45-percentage-point SLA collapse despite affecting only 7.8% of ticket volume.
+
 ## Business Context
 IT operations teams often can't see the cost of workflow turbulence. This diagnostic isolates the "Rework Tax" as the primary driver of SLA failure and senior engineer context-switching overhead.
 
 ## Approach
-I normalized the event-log into a one-row-per-incident view and defined rework thresholds to include reopen_count > 0 and reassignment_count > 3.
-This repository demonstrates intermediate-level SQL applied to an IT Service Management (ITSM) event log dataset.  
+I normalized the event-log into a one-row-per-incident view and defined rework thresholds to include reopen_count > 0 and reassignment_count > 3. 
 
 
 ## Dataset & Schema
@@ -28,43 +29,21 @@ This project separates logic into layers:
 
 01_profiling Understand event density and confirm modeling assumptions. Explore workflow distribution and friction drivers
 
-02_modeling Normalize event-log incidents into one-row-per-incident (latest state). Key modeling decision:
-Event log → Latest state view for case-level reporting.
+02_modeling Normalize event-log incidents into one-row-per-incident (latest state). 
 
 03_metrics Identifies the 'SLA Penalty' associated with reassignments and reopens. uantify the cost of process friction (Rework)
 
 04_governance TBD
 
 ## Key Queries
-## Query #1: Normalize event-log incidents into one-row-per-incident (latest state)
-DROP VIEW IF EXISTS v_incidents_latest;
 
-CREATE VIEW v_incidents_latest AS
-WITH ranked AS (
-  SELECT
-    i.*,
-    ROW_NUMBER() OVER (
-      PARTITION BY number
-      ORDER BY
-        (
-          WITH src(dt) AS (SELECT COALESCE(i.sys_updated_at, i.sys_created_at))
-          SELECT
-            substr(dt, instr(dt, '/') + 1 + instr(substr(dt, instr(dt, '/') + 1), '/'), 4) || '-' ||
-            printf('%02d', CAST(substr(dt, instr(dt, '/') + 1, instr(substr(dt, instr(dt, '/') + 1), '/') - 1) AS INT)) || '-' ||
-            printf('%02d', CAST(substr(dt, 1, instr(dt, '/') - 1) AS INT)) || ' ' ||
-            substr(dt, instr(dt, ' ') + 1)
-          FROM src
-        ) DESC,
-        sys_mod_count DESC,
-        rowid DESC
-    ) AS rn
-  FROM incidents i
-)
-SELECT *
-FROM ranked
-WHERE rn = 1;
+### Normalization Logic
+A single incident generates multiple event-log rows as it moves through assignment and status changes. I created a normalized view to isolate the latest state of each incident using `ROW_NUMBER()` window functions partitioned by incident number.
 
-## Query #2: Rework & Process Friction
+See [`02_modeling/create_latest_view.sql`](sql/02_modeling/create_latest_view.sql) for full implementation.
+
+### Rework & SLA Performance Analysis
+This query identifies the "Rework Tax" by comparing SLA attainment between clean tickets and those experiencing process friction (reassignment_count > 3 or reopen_count > 0):
 WITH rework_flagged AS (
     SELECT 
         number,
