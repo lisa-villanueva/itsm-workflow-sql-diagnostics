@@ -101,9 +101,9 @@ To ensure decision-grade accuracy, a normalized view (v_incidents_latest) was cr
 
 ## Tools & Skills Demonstrated
 
-SQL: Window functions (ROW_NUMBER), CTEs, conditional aggregation
-Data Governance: Case-level normalization, metric integrity, reconciliation logic
-Business Analysis: Root cause isolation, executive framing, diagnostic KPI design
+- SQL: Window functions (ROW_NUMBER), CTEs, conditional aggregation
+- Data Governance: Case-level normalization, metric integrity, reconciliation logic
+- Business Analysis: Root cause isolation, executive framing, diagnostic KPI design
 
 
 ## AI Readiness Considerations
