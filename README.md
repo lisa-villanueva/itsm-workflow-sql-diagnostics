@@ -40,7 +40,7 @@ This project separates logic into layers:
 ### Normalization Logic
 A single incident generates multiple event-log rows as it moves through assignment and status changes. I created a normalized view to isolate the latest state of each incident using `ROW_NUMBER()` window functions partitioned by incident number.
 
-See [`02_modeling/01_create_latest_state_view.sql`](sql\02_modeling\01_create_latest_state_view.sql) for full implementation.
+See [`02_modeling/01_create_latest_state_view.sql`](sql/02_modeling/01_create_latest_state_view.sql) for full implementation.
 
 ### Rework & SLA Performance Analysis
 This query identifies the "Rework Tax" by comparing SLA attainment between clean tickets and those experiencing process friction (reassignment_count > 3 or reopen_count > 0):
